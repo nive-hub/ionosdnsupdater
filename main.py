@@ -4,7 +4,7 @@ import sys
 
 import requests
 from dotenv import load_dotenv
-load_dotenv(os.getcwd() + '\\settings.env')
+load_dotenv(os.path.dirname(__file__) + '/settings.env')
 
 API_KEY = os.environ.get('API_KEY')
 CHECK_IP = os.environ.get('CHECK_IP')
@@ -58,14 +58,16 @@ def iterate_through_records(zone_url, zone):
     for record in zone.json()['records']:
         if record['name'] in TARGETS:
             if (CHECK_IP == 'both' or CHECK_IP == 'ipv4') and record['type'] == 'A':
-                record_handler(zone_url, record, public_ipv4)
+                if public_ipv4 is not None:
+                    record_handler(zone_url, record, public_ipv4)
             if (CHECK_IP == 'both' or CHECK_IP == 'ipv6') and record['type'] == 'AAAA':
-                record_handler(zone_url, record, public_ipv6)
+                if public_ipv6 is not None:
+                    record_handler(zone_url, record, public_ipv6)
 
 
 def record_handler(zone_url, record, ipaddress):
-    record_id = record['id']
     if ipaddress['ip'] != record['content']:
+        record_id = record['id']
         record_url = zone_url + '/records/' + record_id
         new_data = {'content': ipaddress['ip']}
         record_response = update_record_request(record_url, default_headers, new_data)
@@ -81,6 +83,8 @@ def record_handler(zone_url, record, ipaddress):
         # server errors
         else:
             fatal_error(record_response)
+    else:
+        print(f"No changes to \"{record['name']}\" are made.")
 
 
 def update_record_request(url, headers, data):
@@ -109,6 +113,7 @@ if __name__ == '__main__':
         try:
             public_ipv4 = get_public_ipv4().json()
         except requests.exceptions.ConnectionError as e:
+            print("There won't be any changes to records with IPv4.")
             print("Couldn't establish a connection to http://ipv4.jsonip.com")
             print(e)
             failed_requests += 1
@@ -119,6 +124,7 @@ if __name__ == '__main__':
         except requests.exceptions.ConnectionError as e:
             print("Couldn't establish a connection to http://ipv6.jsonip.com")
             print(e)
+            print("There won't be any changes to records with IPv6.")
             failed_requests += 1
 
     # stops skript if there is no ip-address found
